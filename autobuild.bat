@@ -19,13 +19,13 @@ set my_out=NDK_LIBS_OUT=app\src\main\jniLibs\
 cd %~dp0
 ::start %my_ndk% %my_verbose% %my_path% %my_pre_mk% %my_platform% %my_obj_out% %my_libs_out% %my_abi%
 
-::@sleep 3000
+::@sleep 5000
 
 rd/s/q %my_debug%
 @echo "processing cur..."
 start %my_ndk% %my_verbose% %my_path% %my_mk% %my_platform% %my_obj_out% %my_libs_out% %my_abi%
 
-@timeout /t 3 /nobreak > nul
+@timeout /t 5 /nobreak > nul
 copy app\build\intermediates\jniLibs\debug\armeabi\*.so app\src\main\jniLibs\armeabi\
 
 @echo "done..."

@@ -68,13 +68,15 @@ status_t MediaPlayer::prepareAudio() {
     for (int i = 0; i < mMovieFile->nb_streams; i++) {
         if (mMovieFile->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
             mAudioStreamIndex = i;
-            __android_log_print(ANDROID_LOG_INFO, TAG, "prepareAudio found the first audio stream index!");
+            __android_log_print(ANDROID_LOG_INFO, TAG,
+                                "prepareAudio found the first audio stream index!");
             break;
         }
     }
 
     if (mAudioStreamIndex == -1) {
-        __android_log_print(ANDROID_LOG_INFO, TAG, "prepareAudio can't find the first audio stream index!");
+        __android_log_print(ANDROID_LOG_INFO, TAG,
+                            "prepareAudio can't find the first audio stream index!");
         return INVALID_OPERATION;
     }
 
@@ -95,7 +97,8 @@ status_t MediaPlayer::prepareAudio() {
     }
 
     if (Output::AudioDriver_register() != ANDROID_AUDIOTRACK_RESULT_SUCCESS) {
-        __android_log_print(ANDROID_LOG_INFO, TAG, "prepareAudio Output::AudioDriver_register failed!");
+        __android_log_print(ANDROID_LOG_INFO, TAG,
+                            "prepareAudio Output::AudioDriver_register failed!");
         return INVALID_OPERATION;
     }
 
@@ -111,7 +114,8 @@ status_t MediaPlayer::prepareAudio() {
     }
 
     if (Output::AudioDriver_start() != ANDROID_AUDIOTRACK_RESULT_SUCCESS) {
-        __android_log_print(ANDROID_LOG_INFO, TAG, "prepareAudio Output::AudioDriver_start failed!");
+        __android_log_print(ANDROID_LOG_INFO, TAG,
+                            "prepareAudio Output::AudioDriver_start failed!");
         return INVALID_OPERATION;
     }
 
@@ -231,7 +235,8 @@ status_t MediaPlayer::setDataSource(const char *url) {
     int err_code = avformat_open_input(&mMovieFile, url, NULL, NULL);
     if (err_code != 0) {
         av_strerror(err_code, buf, 1024);
-        __android_log_print(ANDROID_LOG_INFO, TAG, "Couldn't open file %s: %d(%s)", url, err_code, buf);
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Couldn't open file %s: %d(%s)", url, err_code,
+                            buf);
         return INVALID_OPERATION;
     }
     // Retrieve stream information
@@ -366,12 +371,13 @@ void MediaPlayer::decodeMovie(void *ptr) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "playing %ix%i", mVideoWidth, mVideoHeight);
     while (mCurrentState != MEDIA_PLAYER_DECODED && mCurrentState != MEDIA_PLAYER_STOPPED &&
            mCurrentState != MEDIA_PLAYER_STATE_ERROR) {
+        __android_log_print(ANDROID_LOG_INFO, TAG, "playing 0");
         if (/*mDecoderVideo->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE &&*/
-            mDecoderAudio->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE) {
+                mDecoderAudio->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE) {
             usleep(200);
             continue;
         }
-
+        __android_log_print(ANDROID_LOG_INFO, TAG, "playing 0");
         if (av_read_frame(mMovieFile, &pPacket) < 0) {
             mCurrentState = MEDIA_PLAYER_DECODED;
             continue;
@@ -727,17 +733,24 @@ bool DecoderAudio::prepare() {
 }
 
 bool DecoderAudio::process(AVPacket * packet) {
-    int size = 0;
-    int len = avcodec_decode_audio4(mStream->codec, mFrame, &size, packet);
-    if(len > 0 && size) {
+    int success = 0, len = 0;
+    int pkt_size = packet->size;
+    for (; pkt_size > 0; pkt_size -= len) {
+        len = avcodec_decode_audio4(mStream->codec, mFrame, &success, packet);
+        __android_log_print(ANDROID_LOG_INFO, TAG, "decoding success=%d len=%d pkt_size=%d", success, len, pkt_size);
+        if (len > 0 && success) {
         int data_size = av_samples_get_buffer_size(mFrame->linesize,
                                                    mStream->codec->channels, mFrame->nb_samples,
                                                    mStream->codec->sample_fmt, 1);
-        //call handler for posting buffer to os audio driver
-        onDecode((int16_t*)mFrame->linesize[0], data_size);
-        return true;
+//            int data_size = mFrame->nb_samples * av_frame_get_channels(mFrame) * sizeof(int16_t);
+            __android_log_print(ANDROID_LOG_INFO, TAG, "decoding data_size=%d decode_size=%d", data_size, mFrame->linesize[0]);
+            //call handler for posting buffer to os audio driver
+            onDecode((int16_t *) mFrame->data[0], mFrame->linesize[0]);
+        } else {
+            pkt_size = 0;
+        }
     }
-    return false;
+    return true;
 }
 
 bool DecoderAudio::decode(void *ptr) {
@@ -764,7 +777,6 @@ bool DecoderAudio::decode(void *ptr) {
     av_frame_free(&mFrame);
     return true;
 }
-
 
 
 DecoderVideo::DecoderVideo(AVStream * stream) : IDecoder(stream) {
