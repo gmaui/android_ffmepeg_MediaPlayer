@@ -100,7 +100,7 @@ protected:
     void						handleRun(void* ptr);
 };
 
-typedef void (*AudioDecodingHandler) (AVFrame*,int);
+typedef void (*AudioDecodingHandler) (int16_t*,int);
 
 class DecoderAudio : public IDecoder
 {
@@ -302,7 +302,7 @@ private:
 
     static void decode(AVFrame *frame, double pts);
 
-    static void decode(AVFrame *frame, int buffer_size);
+    static void decode(int16_t *frame, int buffer_size);
 
     void decodeMovie(void *ptr);
 
@@ -334,6 +334,7 @@ private:
     float mRightVolume;
     int mVideoWidth;
     int mVideoHeight;
+    bool mAudioOnly;
 };
 
 #include <android/audiotrack.h>

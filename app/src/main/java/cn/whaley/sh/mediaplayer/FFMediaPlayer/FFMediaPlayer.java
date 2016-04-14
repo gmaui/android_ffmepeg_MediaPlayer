@@ -24,49 +24,65 @@ public class FFMediaPlayer {
     private static final int MEDIA_ERROR = 100;
     private static final int MEDIA_INFO = 200;
 
-    /** Unspecified media player error.
+    /**
+     * Unspecified media player error.
+     *
      * @see android.media.MediaPlayer.OnErrorListener
      */
     public static final int MEDIA_ERROR_UNKNOWN = 1;
 
-    /** Media server died. In this case, the application must release the
+    /**
+     * Media server died. In this case, the application must release the
      * MediaPlayer object and instantiate a new one.
+     *
      * @see android.media.MediaPlayer.OnErrorListener
      */
     public static final int MEDIA_ERROR_SERVER_DIED = 100;
 
-    /** The video is streamed and its container is not valid for progressive
+    /**
+     * The video is streamed and its container is not valid for progressive
      * playback i.e the video's index (e.g moov atom) is not at the start of the
      * file.
+     *
      * @see android.media.MediaPlayer.OnErrorListener
      */
     public static final int MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK = 200;
 
 
-    /** Unspecified media player info.
+    /**
+     * Unspecified media player info.
+     *
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_UNKNOWN = 1;
 
-    /** The video is too complex for the decoder: it can't decode frames fast
-     *  enough. Possibly only the audio plays fine at this stage.
+    /**
+     * The video is too complex for the decoder: it can't decode frames fast
+     * enough. Possibly only the audio plays fine at this stage.
+     *
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_VIDEO_TRACK_LAGGING = 700;
 
-    /** Bad interleaving means that a media has been improperly interleaved or
+    /**
+     * Bad interleaving means that a media has been improperly interleaved or
      * not interleaved at all, e.g has all the video samples first then all the
      * audio ones. Video is playing but a lot of disk seeks may be happening.
+     *
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_BAD_INTERLEAVING = 800;
 
-    /** The media cannot be seeked (e.g live stream)
+    /**
+     * The media cannot be seeked (e.g live stream)
+     *
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_NOT_SEEKABLE = 801;
 
-    /** A new set of metadata is available.
+    /**
+     * A new set of metadata is available.
+     *
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_METADATA_UPDATE = 802;
@@ -74,9 +90,9 @@ public class FFMediaPlayer {
     public static final int MEDIA_INFO_FRAMERATE_VIDEO = 900;
     public static final int MEDIA_INFO_FRAMERATE_AUDIO = 901;
 
-    private int                         mNativeContext;
+    private int mNativeContext; //native mediaplayer
 
-    public FFMediaPlayer(){
+    public FFMediaPlayer() {
         Log.d(TAG, DEBUG_IN + "FFMediaPlayer");
         native_setup(new WeakReference<FFMediaPlayer>(this));
         Log.d(TAG, DEBUG_OUT + "FFMediaPlayer");
@@ -176,9 +192,8 @@ public class FFMediaPlayer {
      * the cookie passed to native_setup().)
      */
     private static void postEventFromNative(Object mediaplayer_ref,
-                                            int what, int arg1, int arg2, Object obj)
-    {
-        switch(what) {
+                                            int what, int arg1, int arg2, Object obj) {
+        switch (what) {
             case MEDIA_INFO_FRAMERATE_VIDEO:
                 Log.d(TAG, "Video fps:" + arg1);
                 break;
@@ -220,6 +235,12 @@ public class FFMediaPlayer {
 
     private native void native_setVideoSurface(Surface surface);
 
+    private static native final void native_init();
+
+    private native final void native_setup(Object self);
+
+    private native final void native_finalize();
+
     static {
         System.loadLibrary("avutil-55");
         System.loadLibrary("avformat-57");
@@ -230,10 +251,4 @@ public class FFMediaPlayer {
         System.loadLibrary("FFMediaPlayer-jni");
         native_init();
     }
-
-    private static native final void native_init();
-
-    private native final void native_setup(Object self);
-
-    private native final void native_finalize();
 }

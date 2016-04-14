@@ -30,6 +30,9 @@ public class MediaPlayerActivity extends Activity {
                 FFMediaPlayer FFPlayer = new FFMediaPlayer();
                 try {
                     FFPlayer.native_getVersion();
+                    FFPlayer.setDataSource(filePath);
+                    FFPlayer.prepare();
+                    FFPlayer.start();
                 } catch (IllegalArgumentException e) {
                     Log.e(TAG, "Can't set video: " + e.getMessage());
                     MessageBox.show(this, e);

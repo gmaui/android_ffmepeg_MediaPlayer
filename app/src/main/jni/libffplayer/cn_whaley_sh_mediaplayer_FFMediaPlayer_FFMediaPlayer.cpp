@@ -119,7 +119,7 @@ static MediaPlayer *setMediaPlayer(JNIEnv *env, jobject thiz, MediaPlayer *playe
     MediaPlayer *old = (MediaPlayer *) env->GetIntField(thiz, fields.context);
     if (old != NULL) {
         __android_log_print(ANDROID_LOG_INFO, TAG, "freeing old mediaplayer object");
-        free(old);
+        delete old;
     }
     env->SetIntField(thiz, fields.context, (int) player);
     return old;
@@ -212,6 +212,7 @@ JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer
  */
 JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer_native_1prepare
         (JNIEnv *env, jobject thiz) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepare");
     MediaPlayer *mp = getMediaPlayer(env, thiz);
     if (mp == NULL) {
         jniThrowException(env, "java/lang/IllegalStateException", NULL);
@@ -401,7 +402,7 @@ JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer
     clazz = env->FindClass(kClassPathName);
     if (clazz == NULL) {
         jniThrowException(env, "java/lang/RuntimeException",
-                          "Can't find "+kClassPathName);
+                          "Can't find cn.whaley.sh.mediaplayer.FFMediaPlayer.FFMediaPlayer");
         return;
     }
 
