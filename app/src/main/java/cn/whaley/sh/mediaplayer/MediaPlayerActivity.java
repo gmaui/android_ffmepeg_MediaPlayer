@@ -14,6 +14,8 @@ public class MediaPlayerActivity extends Activity {
 
     private final String TAG = "MediaPlayerActivity";
 
+    FFMediaPlayer FFPlayer = new FFMediaPlayer();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -27,7 +29,7 @@ public class MediaPlayerActivity extends Activity {
         } else {
             try {
                 Log.d(TAG,"Input File:"+filePath);
-                FFMediaPlayer FFPlayer = new FFMediaPlayer();
+
                 try {
                     FFPlayer.native_getVersion();
                     FFPlayer.setDataSource(filePath);
@@ -49,4 +51,41 @@ public class MediaPlayerActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+//        try {
+//            FFPlayer.pause();
+//        } catch (IllegalArgumentException e) {
+//            Log.e(TAG, "Can't set video: " + e.getMessage());
+//            MessageBox.show(this, e);
+//        } catch (IllegalStateException e) {
+//            Log.e(TAG, "Can't set video: " + e.getMessage());
+//            MessageBox.show(this, e);
+//        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try {
+            FFPlayer.stop();
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Can't set video: " + e.getMessage());
+            MessageBox.show(this, e);
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Can't set video: " + e.getMessage());
+            MessageBox.show(this, e);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+    }
 }

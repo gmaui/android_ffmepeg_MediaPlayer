@@ -25,11 +25,20 @@ public class FileExplorerActivity extends ListActivity {
     private File[] mFiles;
 
     public static final String[] EXTENSIONS = new String[] {
+            //video format
             ".mp4",
             ".flv",
             ".avi",
             ".wmv",
-            ".mp3"
+            //audio format
+            ".mp3",
+            ".aac",
+            ".ac3",
+            ".wav",
+            ".amr",
+            ".mp2",
+            ".ogg",
+            ".wma"
     };
 
     @Override

@@ -16,6 +16,7 @@ extern "C" {
 
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
+#include "libswresample/swresample.h"
 
 #ifdef __cplusplus
 }
@@ -113,7 +114,9 @@ public:
 
 private:
     AVFrame*					mFrame;
-
+    AVFrame*                    mSwrFrame;
+    SwrContext*                 mSwrCtx;
+    int                         mResample;
     bool                        prepare();
     bool                        decode(void* ptr);
     bool                        process(AVPacket *packet);

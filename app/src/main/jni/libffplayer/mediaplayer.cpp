@@ -24,6 +24,8 @@ extern "C" {
 #include "libavutil/log.h"
 #include "libavutil/avutil.h"
 #include "libavutil/frame.h"
+#include "libswresample/swresample.h"
+#include "libavutil/opt.h"
 
 #ifdef __cplusplus
 }
@@ -41,7 +43,7 @@ MediaPlayer::MediaPlayer() {
     mListener = NULL;
     mCookie = NULL;
     mDuration = -1;
-    mStreamType = MUSIC;
+    mStreamType = ANDROID_AUDIO_STREAM_MUSIC;
     mCurrentPosition = -1;
     mSeekPosition = -1;
     mCurrentState = MEDIA_PLAYER_IDLE;
@@ -52,13 +54,18 @@ MediaPlayer::MediaPlayer() {
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     mAudioOnly = 0;
-    sPlayer = this;
 
+    sPlayer = this;
 }
 
 MediaPlayer::~MediaPlayer() {
     if (mListener != NULL) {
         free(mListener);
+    }
+    if(mMovieFile != NULL)
+    {
+        avformat_free_context(mMovieFile);
+        mMovieFile = NULL;
     }
 }
 
@@ -103,11 +110,11 @@ status_t MediaPlayer::prepareAudio() {
     }
 
     // prepare os output
-    if (Output::AudioDriver_set(MUSIC,
+    if (Output::AudioDriver_set(ANDROID_AUDIO_STREAM_MUSIC,
                                 stream->codec->sample_rate,
-                                PCM_16_BIT,
-                                (stream->codec->channels == 2) ? CHANNEL_OUT_STEREO
-                                                               : CHANNEL_OUT_MONO) !=
+                                ANDROID_AUDIO_FORMAT_PCM_16_BIT,
+                                (stream->codec->channels == 2) ? ANDROID_AUDIO_CHANNEL_OUT_STEREO
+                                                               : ANDROID_AUDIO_CHANNEL_OUT_MONO) !=
         ANDROID_AUDIOTRACK_RESULT_SUCCESS) {
         __android_log_print(ANDROID_LOG_INFO, TAG, "prepareAudio Output::AudioDriver_set failed!");
         return INVALID_OPERATION;
@@ -227,11 +234,11 @@ status_t MediaPlayer::setListener(MediaPlayerListener *listener) {
 status_t MediaPlayer::setDataSource(const char *url) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "setDataSource(%s)", url);
     status_t err = BAD_VALUE;
-    avcodec_register_all();
     av_register_all();
     __android_log_print(ANDROID_LOG_INFO, TAG, "setDataSource(register_all)");
     // Open video file
     char buf[1024] = {0};
+    mMovieFile = avformat_alloc_context();
     int err_code = avformat_open_input(&mMovieFile, url, NULL, NULL);
     if (err_code != 0) {
         av_strerror(err_code, buf, 1024);
@@ -725,10 +732,30 @@ DecoderAudio::~DecoderAudio() {
 }
 
 bool DecoderAudio::prepare() {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderAudio::prepare");
     mFrame = av_frame_alloc();
-    if (mFrame == NULL) {
+    mSwrFrame = av_frame_alloc();
+    mSwrCtx = swr_alloc();
+
+    if (mFrame == NULL || mSwrFrame == NULL || mSwrCtx == NULL) {
         return false;
     }
+    //initSwr
+    if(mStream->codec->sample_fmt != AV_SAMPLE_FMT_S16)
+    {
+        av_opt_set_int(mSwrCtx, "in_channel_layout",    mStream->codec->channel_layout, 0);
+        av_opt_set_int(mSwrCtx, "in_sample_rate",       mStream->codec->sample_rate, 0);
+        av_opt_set_sample_fmt(mSwrCtx, "in_sample_fmt", mStream->codec->sample_fmt, 0);
+        av_opt_set_int(mSwrCtx, "out_channel_layout",    mStream->codec->channel_layout, 0);
+        av_opt_set_int(mSwrCtx, "out_sample_rate",       mStream->codec->sample_rate, 0);
+        av_opt_set_sample_fmt(mSwrCtx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+
+        swr_init(mSwrCtx);
+        mResample = 1;
+    }else{
+        mResample = 0;
+    }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderAudio::prepare mResample=%d", mResample);
     return true;
 }
 
@@ -739,13 +766,43 @@ bool DecoderAudio::process(AVPacket * packet) {
         len = avcodec_decode_audio4(mStream->codec, mFrame, &success, packet);
         __android_log_print(ANDROID_LOG_INFO, TAG, "decoding success=%d len=%d pkt_size=%d", success, len, pkt_size);
         if (len > 0 && success) {
-        int data_size = av_samples_get_buffer_size(mFrame->linesize,
-                                                   mStream->codec->channels, mFrame->nb_samples,
-                                                   mStream->codec->sample_fmt, 1);
+            if(mResample == 1)
+            {
+                mFrame->pts = av_frame_get_best_effort_timestamp(mFrame);
+                mSwrFrame->pts = mFrame->pts;
+
+                if (mSwrCtx != NULL)
+                {
+                    mSwrFrame->nb_samples = av_rescale_rnd(swr_get_delay(mSwrCtx, mStream->codec->sample_rate) + mFrame->nb_samples,
+                                                           mStream->codec->sample_rate, mStream->codec->sample_rate, AV_ROUND_UP);
+
+                    av_freep(&mSwrFrame->data[0]);
+                    int ret = av_samples_alloc(mSwrFrame->data, &mSwrFrame->linesize[0],
+                                           mStream->codec->channels, mSwrFrame->nb_samples, AV_SAMPLE_FMT_S16, 1);
+                    if (ret < 0)
+                    {
+                        return false;
+                    }
+
+                    ret = swr_convert(mSwrCtx, mSwrFrame->data, mSwrFrame->nb_samples,
+                                      (const uint8_t**)mFrame, mFrame->nb_samples);
+                    if (ret < 0)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else{
+                mSwrFrame = mFrame;
+            }
+        int data_size = av_samples_get_buffer_size(mSwrFrame->linesize,
+                                                   mStream->codec->channels, mSwrFrame->nb_samples,
+                                                   AV_SAMPLE_FMT_S16, 1);
 //            int data_size = mFrame->nb_samples * av_frame_get_channels(mFrame) * sizeof(int16_t);
-            __android_log_print(ANDROID_LOG_INFO, TAG, "decoding data_size=%d decode_size=%d", data_size, mFrame->linesize[0]);
+            __android_log_print(ANDROID_LOG_INFO, TAG, "decoding data_size=%d decode_size=%d channes=%d samples=%d sample_fmt=%d",
+                                data_size, mSwrFrame->linesize[0],mStream->codec->channels, mSwrFrame->nb_samples,mStream->codec->sample_fmt);
             //call handler for posting buffer to os audio driver
-            onDecode((int16_t *) mFrame->data[0], mFrame->linesize[0]);
+            onDecode((int16_t *) mSwrFrame->data[0],data_size/* mSwrFrame->linesize[0]*/);
         } else {
             pkt_size = 0;
         }
