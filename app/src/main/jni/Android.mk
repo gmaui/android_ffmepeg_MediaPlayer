@@ -12,7 +12,7 @@ LOCAL_SRC_FILES := libffplayer/cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPla
 
 LOCAL_LDLIBS := -llog -ljnigraphics -lz -landroid
 LOCAL_LDFLAGS := -L$(LOCAL_PATH)/ffmpeg-3.0.1/android/arm/lib/ -L$(LOCAL_PATH)/prebuilt/
-LOCAL_LDLIBS += -lavformat-57 -lavcodec-57 -lswscale-4 -lavutil-55 -lavfilter-6 -lswresample-2 -ljniaudio
+LOCAL_LDLIBS += -lavformat-57 -lavcodec-57 -lswscale-4 -lavutil-55 -lavfilter-6 -lswresample-2 -ljniaudio -ljnivideo
 
 #LOCAL_SHARED_LIBRARIES := libavformat libavcodec libswscale libavutil libavfilter libswresample
 

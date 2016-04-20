@@ -154,6 +154,7 @@ status_t MediaPlayer::prepareVideo() {
         __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo can't find the codec");
         return INVALID_OPERATION;
     }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo find the codec");
 
     AVDictionary *param = 0;
     // Open codec
@@ -165,7 +166,7 @@ status_t MediaPlayer::prepareVideo() {
     mVideoWidth = codec_ctx->width;
     mVideoHeight = codec_ctx->height;
     mDuration = mMovieFile->duration;
-
+    __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_open2 (w,h,dur)=(%d-%d-%d)",mVideoWidth, mVideoHeight, mDuration);
     mConvertCtx = sws_getContext(stream->codec->width,
                                  stream->codec->height,
                                  stream->codec->pix_fmt,
@@ -181,7 +182,9 @@ status_t MediaPlayer::prepareVideo() {
         __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo sws_getContext failed");
         return INVALID_OPERATION;
     }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo sws_getContext done.");
 
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo VideoDriver_getPixels");
     void *pixels;
     if (Output::VideoDriver_getPixels(stream->codec->width,
                                       stream->codec->height,
@@ -190,6 +193,8 @@ status_t MediaPlayer::prepareVideo() {
         return INVALID_OPERATION;
     }
 
+
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo allocated");
     mFrame = av_frame_alloc();
     if (mFrame == NULL) {
         return INVALID_OPERATION;
@@ -202,7 +207,7 @@ status_t MediaPlayer::prepareVideo() {
                    AV_PIX_FMT_RGB565,
                    stream->codec->width,
                    stream->codec->height);
-
+    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo done");
     return NO_ERROR;
 }
 
@@ -293,12 +298,15 @@ status_t MediaPlayer::resume() {
 }
 
 status_t MediaPlayer::setVideoSurface(JNIEnv *env, jobject jsurface) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "setVideoSurface");
     if (Output::VideoDriver_register(env, jsurface) != ANDROID_SURFACE_RESULT_SUCCESS) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "setVideoSurface failed");
         return INVALID_OPERATION;
     }
-    if (Output::AudioDriver_register() != ANDROID_AUDIOTRACK_RESULT_SUCCESS) {
-        return INVALID_OPERATION;
-    }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "setVideoSurface done");
+//    if (Output::AudioDriver_register() != ANDROID_AUDIOTRACK_RESULT_SUCCESS) {
+//        return INVALID_OPERATION;
+//    }
     return NO_ERROR;
 }
 
@@ -325,7 +333,7 @@ void MediaPlayer::decode(AVFrame *frame, double pts) {
         }
         frames++;
     }
-
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "VideoDecoder sws_scale");
     // Convert the image from its native format to RGB
     sws_scale(sPlayer->mConvertCtx,
               frame->data,
@@ -369,33 +377,31 @@ void MediaPlayer::decodeMovie(void *ptr) {
     mDecoderAudio->onDecode = decode;
     mDecoderAudio->startAsync();
 
-//    AVStream *stream_video = mMovieFile->streams[mVideoStreamIndex];
-//    mDecoderVideo = new DecoderVideo(stream_video);
-//    mDecoderVideo->onDecode = decode;
-//    mDecoderVideo->startAsync();
+    AVStream *stream_video = mMovieFile->streams[mVideoStreamIndex];
+    mDecoderVideo = new DecoderVideo(stream_video);
+    mDecoderVideo->onDecode = decode;
+    mDecoderVideo->startAsync();
 
     mCurrentState = MEDIA_PLAYER_STARTED;
     __android_log_print(ANDROID_LOG_INFO, TAG, "playing %ix%i", mVideoWidth, mVideoHeight);
     while (mCurrentState != MEDIA_PLAYER_DECODED && mCurrentState != MEDIA_PLAYER_STOPPED &&
            mCurrentState != MEDIA_PLAYER_STATE_ERROR) {
-        __android_log_print(ANDROID_LOG_INFO, TAG, "playing 0");
-        if (/*mDecoderVideo->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE &&*/
+        if (mDecoderVideo->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE &&
                 mDecoderAudio->packets() > FFMPEG_PLAYER_MAX_QUEUE_SIZE) {
             usleep(200);
             continue;
         }
-        __android_log_print(ANDROID_LOG_INFO, TAG, "playing 0");
+
         if (av_read_frame(mMovieFile, &pPacket) < 0) {
             mCurrentState = MEDIA_PLAYER_DECODED;
             continue;
         }
 
         // Is this a packet from the video stream?
-//        if (pPacket.stream_index == mVideoStreamIndex) {
-//            mDecoderVideo->enqueue(&pPacket);
-//        }
-//        else
-        if (pPacket.stream_index == mAudioStreamIndex) {
+        if (pPacket.stream_index == mVideoStreamIndex) {
+            mDecoderVideo->enqueue(&pPacket);
+        }
+        else if (pPacket.stream_index == mAudioStreamIndex) {
             mDecoderAudio->enqueue(&pPacket);
         }
         else {
@@ -405,11 +411,11 @@ void MediaPlayer::decodeMovie(void *ptr) {
     }
 
     //waits on end of video thread
-//    __android_log_print(ANDROID_LOG_ERROR, TAG, "waiting on video thread");
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "waiting on video thread");
     int ret = -1;
-//    if ((ret = mDecoderVideo->wait()) != 0) {
-//        __android_log_print(ANDROID_LOG_ERROR, TAG, "Couldn't cancel video thread: %i", ret);
-//    }
+    if ((ret = mDecoderVideo->wait()) != 0) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Couldn't cancel video thread: %i", ret);
+    }
 
     __android_log_print(ANDROID_LOG_ERROR, TAG, "waiting on audio thread");
     if ((ret = mDecoderAudio->wait()) != 0) {
@@ -604,13 +610,11 @@ int Output::AudioDriver_write(void *buffer, int buffer_size) {
 //-------------------- Video driver --------------------
 
 int Output::VideoDriver_register(JNIEnv *env, jobject jsurface) {
-//    return AndroidSurface_register(env, jsurface);
-    return 0;
+    return AndroidSurface_register(env, jsurface);
 }
 
 int Output::VideoDriver_unregister() {
-//    return AndroidSurface_unregister();
-    return 0;
+    return AndroidSurface_unregister();
 }
 
 int Output::VideoDriver_getPixels(int width, int height, void **pixels) {
@@ -853,7 +857,7 @@ bool DecoderVideo::prepare() {
 }
 
 double DecoderVideo::synchronize(AVFrame *src_frame, double pts) {
-
+    __android_log_print(ANDROID_LOG_INFO, TAG, "synchronize");
     double frame_delay;
 
     if (pts != 0) {
@@ -872,38 +876,35 @@ double DecoderVideo::synchronize(AVFrame *src_frame, double pts) {
 }
 
 bool DecoderVideo::process(AVPacket * packet) {
-    int completed;
-    int pts = 0;
-//
-//    // Decode video frame
-//    avcodec_decode_video2(mStream->codec,
-//                          mFrame,
-//                          &completed,
-//                          packet);
-//
-//    if (packet->dts == AV_NOPTS_VALUE && mFrame->opaque
-//        && *(uint64_t *) mFrame->opaque != AV_NOPTS_VALUE) {
-//        pts = *(uint64_t *) mFrame->opaque;
-//    } else if (packet->dts != AV_NOPTS_VALUE) {
-//        pts = packet->dts;
-//    } else {
-//        pts = 0;
-//    }
-//    pts *= av_q2d(mStream->time_base);
-//
-//    if (completed) {
-//        pts = synchronize(mFrame, pts);
-//
+    int completed = 0;
+    double pts = 0;
+    __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderVideo::process");
+    // Decode video frame
+    avcodec_decode_video2(mStream->codec,
+                          mFrame,
+                          &completed,
+                          packet);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_decode_video2 completed=%d", completed);
+    if (packet->dts == AV_NOPTS_VALUE && mFrame->opaque
+        && *(uint64_t *) mFrame->opaque != AV_NOPTS_VALUE) {
+        pts = *(uint64_t *) mFrame->opaque;
+    } else if (packet->dts != AV_NOPTS_VALUE) {
+        pts = packet->dts;
+    } else {
+        pts = 0;
+    }
+    pts *= av_q2d(mStream->time_base);
+
+    if (completed) {
+        pts = synchronize(mFrame, pts);
 //        onDecode(mFrame, pts);
-//
-//        return true;
-//    }
-    return false;
+    }
+
+    return true;
 }
 
 bool DecoderVideo::decode(void *ptr) {
     AVPacket pPacket;
-
     __android_log_print(ANDROID_LOG_INFO, TAG, "decoding video");
 
     while (mRunning) {

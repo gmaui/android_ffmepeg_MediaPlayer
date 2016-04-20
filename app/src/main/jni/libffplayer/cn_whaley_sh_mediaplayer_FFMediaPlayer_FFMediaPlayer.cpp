@@ -388,7 +388,20 @@ JNIEXPORT jboolean JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPl
  * Signature: (Landroid/view/Surface;)V
  */
 JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer_native_1setVideoSurface
-        (JNIEnv *env, jobject thiz, jobject jobject2) { }
+        (JNIEnv *env, jobject thiz, jobject jsurface) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "native_setVideoSurface");
+    MediaPlayer* mp = getMediaPlayer(env, thiz);
+    if (mp == NULL ) {
+        jniThrowException(env, "java/lang/IllegalStateException", NULL);
+        return;
+    }
+    if (jsurface == NULL ) {
+        jniThrowException(env, "java/lang/IllegalStateException", NULL);
+        return;
+    }
+    process_media_player_call( env, thiz, mp->setVideoSurface(env, jsurface),
+                               "java/io/IOException", "Set video surface failed.");
+}
 
 /*
  * Class:     cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer

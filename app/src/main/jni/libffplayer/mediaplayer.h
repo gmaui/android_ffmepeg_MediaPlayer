@@ -137,7 +137,7 @@ private:
     double						mVideoClock;
 
     bool                        prepare();
-    double 						synchronize(AVFrame *src_frame, double pts);
+    double 					 synchronize(AVFrame *src_frame, double pts);
     bool                        decode(void* ptr);
     bool                        process(AVPacket *packet);
     //static int					getBuffer(struct AVCodecContext *c, AVFrame *pic);
