@@ -134,7 +134,10 @@ public:
 
 private:
     AVFrame*					mFrame;
+    AVFrame*                    mSwsFrame;
+    struct SwsContext*         mSwsCtx;
     double						mVideoClock;
+    uint8_t*                    mBufferFrame;
 
     bool                        prepare();
     double 					 synchronize(AVFrame *src_frame, double pts);
@@ -359,7 +362,7 @@ public:
     static int					AudioDriver_unregister();
 
     static int					VideoDriver_register(JNIEnv* env, jobject jsurface);
-    static int					VideoDriver_getPixels(int width, int height, void** pixels);
+    static int					VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv);
     static int					VideoDriver_updateSurface();
     static int					VideoDriver_unregister();
 };

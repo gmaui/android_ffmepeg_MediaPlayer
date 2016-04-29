@@ -172,7 +172,7 @@ status_t MediaPlayer::prepareVideo() {
                                  stream->codec->pix_fmt,
                                  stream->codec->width,
                                  stream->codec->height,
-                                 AV_PIX_FMT_RGB565,
+                                 AV_PIX_FMT_YUV420P,
                                  SWS_POINT,
                                  NULL,
                                  NULL,
@@ -183,31 +183,31 @@ status_t MediaPlayer::prepareVideo() {
         return INVALID_OPERATION;
     }
     __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo sws_getContext done.");
-
-    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo VideoDriver_getPixels");
-    void *pixels;
-    if (Output::VideoDriver_getPixels(stream->codec->width,
-                                      stream->codec->height,
-                                      &pixels) != ANDROID_SURFACE_RESULT_SUCCESS) {
-        __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo VideoDriver_getPixels failed");
-        return INVALID_OPERATION;
-    }
-
-
-    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo allocated");
-    mFrame = av_frame_alloc();
-    if (mFrame == NULL) {
-        return INVALID_OPERATION;
-    }
+//
+//    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo VideoDriver_getPixels");
+//    void *pixels;
+//    if (Output::VideoDriver_getPixels(stream->codec->width,
+//                                      stream->codec->height,
+//                                      &pixels) != ANDROID_SURFACE_RESULT_SUCCESS) {
+//        __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo VideoDriver_getPixels failed");
+//        return INVALID_OPERATION;
+//    }
+//
+//
+//    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo allocated");
+//    mFrame = av_frame_alloc();
+//    if (mFrame == NULL) {
+//        return INVALID_OPERATION;
+//    }
     // Assign appropriate parts of buffer to image planes in pFrameRGB
     // Note that pFrameRGB is an AVFrame, but AVFrame is a superset
     // of AVPicture
-    avpicture_fill((AVPicture *) mFrame,
-                   (uint8_t *) pixels,
-                   AV_PIX_FMT_RGB565,
-                   stream->codec->width,
-                   stream->codec->height);
-    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo done");
+//    avpicture_fill((AVPicture *) mFrame,
+//                   (uint8_t *) pixels,
+//                   AV_PIX_FMT_YUV420P,
+//                   stream->codec->width,
+//                   stream->codec->height);
+//    __android_log_print(ANDROID_LOG_INFO, TAG, "prepareVideo done");
     return NO_ERROR;
 }
 
@@ -333,17 +333,18 @@ void MediaPlayer::decode(AVFrame *frame, double pts) {
         }
         frames++;
     }
-    __android_log_print(ANDROID_LOG_ERROR, TAG, "VideoDecoder sws_scale");
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "VideoDecoder writePixels");
     // Convert the image from its native format to RGB
-    sws_scale(sPlayer->mConvertCtx,
-              frame->data,
-              frame->linesize,
-              0,
-              sPlayer->mVideoHeight,
-              sPlayer->mFrame->data,
-              sPlayer->mFrame->linesize);
-
-    Output::VideoDriver_updateSurface();
+//    sws_scale(sPlayer->mConvertCtx,
+//              frame->data,
+//              frame->linesize,
+//              0,
+//              sPlayer->mVideoHeight,
+//              sPlayer->mFrame->data,
+//              sPlayer->mFrame->linesize);
+    Output::VideoDriver_writePixels(frame->width, frame->height,
+                               (void*)frame->data[0], (void*)frame->data[2], (void*)frame->data[1]);
+    //Output::VideoDriver_updateSurface();
 }
 
 void MediaPlayer::decode(int16_t *buffer, int buffer_size) {
@@ -617,9 +618,8 @@ int Output::VideoDriver_unregister() {
     return AndroidSurface_unregister();
 }
 
-int Output::VideoDriver_getPixels(int width, int height, void **pixels) {
-//    return AndroidSurface_getPixels(width, height, pixels);
-    return 0;
+int Output::VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv) {
+    return AndroidSurface_writePixels(width, height, py, pu, pv);
 }
 
 int Output::VideoDriver_updateSurface() {
@@ -691,14 +691,20 @@ IDecoder::~IDecoder() {
 }
 
 void IDecoder::enqueue(AVPacket * packet) {
+    if(NULL == mQueue)
+        return;
     mQueue->put(packet);
 }
 
 int IDecoder::packets() {
+    if(NULL == mQueue)
+        return 0;
     return mQueue->size();
 }
 
 void IDecoder::stop() {
+    if(NULL == mQueue)
+        return;
     mQueue->abort();
     __android_log_print(ANDROID_LOG_INFO, TAG, "waiting on end of decoder thread");
     int ret = -1;
@@ -853,6 +859,19 @@ bool DecoderVideo::prepare() {
     if (mFrame == NULL) {
         return false;
     }
+    mSwsCtx = sws_getContext(mStream->codec->width,
+                             mStream->codec->height,
+                             mStream->codec->pix_fmt,
+                             mStream->codec->width,
+                             mStream->codec->height,
+                   AV_PIX_FMT_YUV420P,
+                   SWS_POINT,
+                   NULL,
+                   NULL,
+                   NULL);
+    if (mSwsCtx == NULL) {
+        return false;
+    }
     return true;
 }
 
@@ -876,14 +895,21 @@ double DecoderVideo::synchronize(AVFrame *src_frame, double pts) {
 }
 
 bool DecoderVideo::process(AVPacket * packet) {
+    static int iFrame = 0;
     int completed = 0;
     double pts = 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderVideo::process");
     // Decode video frame
-    avcodec_decode_video2(mStream->codec,
+    char buf[1024] = {0};
+    int err_code = avcodec_decode_video2(mStream->codec,
                           mFrame,
                           &completed,
                           packet);
+    if (err_code != 0) {
+        av_strerror(err_code, buf, 1024);
+        __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_decode_video2: %d(%s)", err_code,
+                            buf);
+    }
     __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_decode_video2 completed=%d", completed);
     if (packet->dts == AV_NOPTS_VALUE && mFrame->opaque
         && *(uint64_t *) mFrame->opaque != AV_NOPTS_VALUE) {
@@ -897,7 +923,50 @@ bool DecoderVideo::process(AVPacket * packet) {
 
     if (completed) {
         pts = synchronize(mFrame, pts);
-//        onDecode(mFrame, pts);
+        AVCodecContext* codec_ctx = mStream->codec;
+        mSwsFrame = av_frame_alloc();
+        if (mSwsFrame == NULL) {
+            __android_log_print(ANDROID_LOG_INFO, TAG, "av_frame_alloc mSwsFrame failed");
+        }
+        int numBytesFrame = avpicture_get_size(AV_PIX_FMT_YUV420P, codec_ctx->width, codec_ctx->height);
+        mBufferFrame = (uint8_t *)av_malloc(numBytesFrame*sizeof(uint8_t));
+        avpicture_fill((AVPicture *)mSwsFrame, mBufferFrame, AV_PIX_FMT_YUV420P, codec_ctx->width, codec_ctx->height);
+        mSwsFrame->width = mFrame->width;
+        mSwsFrame->height = mFrame->height;
+        sws_scale(mSwsCtx, mFrame->data, mFrame->linesize, 0, codec_ctx->height, mSwsFrame->data, mSwsFrame->linesize);
+        __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderVideo onDecode ");
+        onDecode(mSwsFrame, pts);
+        if(iFrame++ == 0){
+            FILE *pFile;
+            char szFilename[32];
+            int i;
+
+            // Open file
+            sprintf(szFilename, "/mnt/usb/sda1/video/frame%d_%d_%d.yuv", iFrame, mSwsFrame->width, mSwsFrame->height);
+            pFile=fopen(szFilename, "wb");
+            __android_log_print(ANDROID_LOG_INFO, TAG, "szFileName:%s %d",szFilename,pFile==NULL);
+            if(pFile!=NULL) {
+
+                // Write header
+                //fprintf(pFile, "P6\n%d %d\n255\n", mSwsFrame->width, mSwsFrame->height);
+
+                // Write pixel data
+                for (i = 0; i < mSwsFrame->height; i++)
+                    fwrite(mSwsFrame->data[0] + i * mSwsFrame->linesize[0], 1, mSwsFrame->width,
+                           pFile);
+                for (i = 0; i < mSwsFrame->height; i++)
+                    fwrite(mSwsFrame->data[1] + i * mSwsFrame->linesize[1], 1, mSwsFrame->width/2,
+                           pFile);
+                for (i = 0; i < mSwsFrame->height; i++)
+                    fwrite(mSwsFrame->data[2] + i * mSwsFrame->linesize[2], 1, mSwsFrame->width/2,
+                           pFile);
+//                fwrite(mBufferFrame, 1, numBytesFrame, pFile);
+                // Close file
+                fclose(pFile);
+            }
+        }
+        av_free(mBufferFrame);
+        av_frame_free(&mSwsFrame);
     }
 
     return true;
@@ -913,8 +982,8 @@ bool DecoderVideo::decode(void *ptr) {
             return false;
         }
         if (!process(&pPacket)) {
-            mRunning = false;
-            return false;
+            //mRunning = false;
+            //return false;
         }
         // Free the packet that was allocated by av_read_frame
         av_free_packet(&pPacket);

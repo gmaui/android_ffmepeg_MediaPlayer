@@ -35,7 +35,7 @@ extern "C" {
 int AndroidSurface_register(JNIEnv* env, jobject jsurface);
 
 int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, void *pv);
-	
+
 int AndroidSurface_updateSurface();
 	
 int AndroidSurface_unregister();
@@ -45,4 +45,5 @@ int AndroidSurface_unregister();
 #endif
 
 #endif
+
 
