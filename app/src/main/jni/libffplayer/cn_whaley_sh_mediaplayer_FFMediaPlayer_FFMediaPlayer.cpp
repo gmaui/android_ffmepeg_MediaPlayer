@@ -295,7 +295,14 @@ JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer
  * Signature: ()V
  */
 JNIEXPORT void JNICALL Java_cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer_native_1release
-        (JNIEnv *env, jobject jobject1) { }
+        (JNIEnv *env, jobject thiz) {
+    MediaPlayer *mp = getMediaPlayer(env, thiz);
+    if (mp == NULL) {
+        jniThrowException(env, "java/lang/IllegalStateException", NULL);
+        return;
+    }
+    process_media_player_call(env, thiz, mp->release(), NULL, NULL);
+}
 
 /*
  * Class:     cn_whaley_sh_mediaplayer_FFMediaPlayer_FFMediaPlayer

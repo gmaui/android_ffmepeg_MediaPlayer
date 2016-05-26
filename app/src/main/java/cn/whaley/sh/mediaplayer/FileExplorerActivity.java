@@ -30,6 +30,9 @@ public class FileExplorerActivity extends ListActivity {
             ".flv",
             ".avi",
             ".wmv",
+            ".m2ts",
+            ".rmvb",
+            ".mpeg",
             //audio format
             ".mp3",
             ".aac",

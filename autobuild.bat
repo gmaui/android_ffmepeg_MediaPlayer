@@ -25,7 +25,7 @@ rd/s/q %my_debug%
 @echo "processing cur..."
 start %my_ndk% %my_verbose% %my_path% %my_mk% %my_platform% %my_obj_out% %my_libs_out% %my_abi%
 
-@timeout /t 5 /nobreak > nul
+@timeout /t 8 /nobreak > nul
 copy app\build\intermediates\jniLibs\debug\armeabi\*.so app\src\main\jniLibs\armeabi\
 
 @echo "done..."

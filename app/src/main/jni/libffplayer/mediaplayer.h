@@ -295,6 +295,8 @@ public:
 
     status_t resume();
 
+    status_t release();
+
 private:
     status_t prepareAudio();
 
@@ -362,7 +364,7 @@ public:
     static int					AudioDriver_unregister();
 
     static int					VideoDriver_register(JNIEnv* env, jobject jsurface);
-    static int					VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv);
+    static int					VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv,long long int timestamp);
     static int					VideoDriver_updateSurface();
     static int					VideoDriver_unregister();
 };

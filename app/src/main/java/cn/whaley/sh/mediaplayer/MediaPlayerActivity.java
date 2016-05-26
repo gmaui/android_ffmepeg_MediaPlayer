@@ -21,6 +21,7 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG,"onCreate IN");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_media_player);
 
@@ -52,24 +53,28 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
                 finish();
             }
         }
+        Log.d(TAG,"onCreate OUT");
     }
 
     @Override
     protected void onPause() {
+        Log.d(TAG,"onPause IN");
         super.onPause();
-//        try {
-//            FFPlayer.pause();
-//        } catch (IllegalArgumentException e) {
-//            Log.e(TAG, "Can't set video: " + e.getMessage());
-//            MessageBox.show(this, e);
-//        } catch (IllegalStateException e) {
-//            Log.e(TAG, "Can't set video: " + e.getMessage());
-//            MessageBox.show(this, e);
-//        }
+        try {
+            FFPlayer.pause();
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Can't set video: " + e.getMessage());
+            MessageBox.show(this, e);
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Can't set video: " + e.getMessage());
+            MessageBox.show(this, e);
+        }
+        Log.d(TAG,"onPause OUT");
     }
 
     @Override
     protected void onResume() {
+        Log.d(TAG,"onResume IN");
         super.onResume();
         try {
             FFPlayer.prepare();
@@ -84,14 +89,17 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
             Log.e(TAG, "Can't set video: " + e.getMessage());
             e.printStackTrace();
         }
+        Log.d(TAG,"onResume OUT");
     }
 
     @Override
     protected void onStop() {
+        Log.d(TAG,"onStop IN");
         super.onStop();
         try {
-            if(FFPlayer != null)
+            if(FFPlayer != null){
                 FFPlayer.stop();
+            }
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "stop: " + e.getMessage());
             MessageBox.show(this, e);
@@ -99,15 +107,19 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
             Log.e(TAG, "stop: " + e.getMessage());
             MessageBox.show(this, e);
         }
+        Log.d(TAG,"onStop OUT");
     }
 
     @Override
     protected void onDestroy() {
+        Log.d(TAG,"onDestroy IN");
         super.onDestroy();
+        Log.d(TAG,"onDestroy OUT");
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        Log.d(TAG, "surfaceCreated IN");
         try {
             if(FFPlayer != null)
                 FFPlayer.setDisplay(surfaceView.getHolder());
@@ -118,6 +130,7 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
             Log.e(TAG, "setSurface: " + e.getMessage());
             MessageBox.show(this, e);
         }
+        Log.d(TAG, "surfaceCreated IN");
     }
 
     @Override
@@ -127,6 +140,19 @@ public class MediaPlayerActivity extends Activity implements SurfaceHolder.Callb
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
-
+        Log.d(TAG, "surfaceDestroyed IN");
+        try {
+            if(FFPlayer != null){
+                FFPlayer.stop();
+                FFPlayer.release();
+            }
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "stop: " + e.getMessage());
+            MessageBox.show(this, e);
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "stop: " + e.getMessage());
+            MessageBox.show(this, e);
+        }
+        Log.d(TAG,"surfaceDestroyed OUT");
     }
 }

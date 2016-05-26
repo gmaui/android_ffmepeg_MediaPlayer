@@ -46,11 +46,11 @@ static struct {
   
 using namespace android;  
   
-static sp<Surface> sur;  
+static sp<Surface> sur = NULL;  
   
 static sp<Surface> getNativeSurface(JNIEnv* env, jobject jsurface) {  
     __android_log_print(ANDROID_LOG_INFO, TAG, "getNativeSurface IN");  
-    if(sur != NULL){ 
+    if(sur.get() != NULL){ 
         __android_log_print(ANDROID_LOG_INFO, TAG, "getNativeSurface sur has been generated return directly.");  
 		return sur; 
 	}
@@ -94,10 +94,36 @@ int AndroidSurface_register(JNIEnv* env, jobject jsurface) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "registering video surface");  
       
     sur = getNativeSurface(env, jsurface);  
-    if(sur == NULL) {  
+    if(sur.get() == NULL) {  
          __android_log_print(ANDROID_LOG_ERROR, TAG, "registering getNativeSurface failed");  
          return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
     }  
+
+	sp<ANativeWindow> anw(sur.get());  
+
+    if(native_window_api_disconnect(anw.get(),NATIVE_WINDOW_API_MEDIA) != OK)
+	{
+        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_api_disconnect failed");
+	}
+
+	if(native_window_api_connect(anw.get(),NATIVE_WINDOW_API_MEDIA) != OK)
+	{
+        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_api_connect failed");
+	}
+
+    if(native_window_set_usage( anw.get(), GRALLOC_USAGE_SW_READ_NEVER 
+				| GRALLOC_USAGE_SW_WRITE_OFTEN 
+				| GRALLOC_USAGE_HW_TEXTURE 
+				| GRALLOC_USAGE_EXTERNAL_DISP) != OK)
+	{
+        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_usage failed");
+	}
+
+	if(native_window_set_scaling_mode(anw.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW) != OK)
+	{
+        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_scaling_mode failed");
+	}
+
     //sp<ANativeWindow> anw(sur);  
     //int FromSurfaceFlinger = 1;
 	//anw->query(anw.get(),NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER,&FromSurfaceFlinger);
@@ -110,37 +136,21 @@ int AndroidSurface_register(JNIEnv* env, jobject jsurface) {
       
     return ANDROID_SURFACE_RESULT_SUCCESS;  
 }  
-  
-int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, void *pv) {  
-    __android_log_print(ANDROID_LOG_INFO, TAG, "pixels(%d %d)(%p %p %p) ", width, height, py, pu, pv);  
-    if(sur == NULL) {  
+
+int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, void *pv, int64_t timestamp) {  
+    __android_log_print(ANDROID_LOG_INFO, TAG, "pixels(%d %d)(%p %p %p) (%lld)", width, height, py, pu, pv, timestamp);  
+    if(sur.get() == NULL) {  
         return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
     }  
-    sp<ANativeWindow> anw(sur);  
+    sp<ANativeWindow> anw(sur.get());  
 	int ret = 0;
     
-	Rect dirtyRect;
-    Rect* dirtyRectPtr = NULL;
+	//Rect dirtyRect;
+    //Rect* dirtyRectPtr = NULL;
 
 	int m_width = (width + 1) & ~1;
 	int m_height = (height + 1) & ~1;
 
-    //ANativeWindow_Buffer outBuffer;
-	//status_t err = sur->lock(&outBuffer, dirtyRectPtr);
-    //if (err < 0) {
-    //    __android_log_print(ANDROID_LOG_INFO, TAG, "surface lock failed:%d", err);
-    //    return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
-	//}
-    //__android_log_print(ANDROID_LOG_INFO, TAG, "window(%d-%d-%d-%d-%p)",
-	//	outBuffer.width, outBuffer.height, outBuffer.stride, outBuffer.format, outBuffer.bits);
-    //  sur->unlockAndPost();  
-
-	if(native_window_api_connect(anw.get(),NATIVE_WINDOW_API_MEDIA) != OK)
-	{
-        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_api_connect failed");
-	}
-
-	ANativeWindowBuffer *nativeWindowBuffer = NULL;
 	if(native_window_set_buffers_dimensions(anw.get(), m_width, m_height) != 0)
 	{
         __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_buffers_dimensions failed");
@@ -157,17 +167,23 @@ int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, 
         __android_log_print(ANDROID_LOG_INFO, TAG, "query failed");
 	}
 
-	if(native_window_set_scaling_mode(anw.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW) != OK)
-	{
-        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_scaling_mode failed");
-	}
-
     __android_log_print(ANDROID_LOG_INFO, TAG, "nativeWindow set bufcount=%d",minBufCount);  
     if(native_window_set_buffer_count(anw.get(), minBufCount+1) != 0)
 	{
         __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_buffer_count failed");
 	}
-	
+
+    //ANativeWindow_Buffer outBuffer;
+	//status_t err = sur->lock(&outBuffer, dirtyRectPtr);
+    //if (err < 0) {
+    //    __android_log_print(ANDROID_LOG_INFO, TAG, "surface lock failed:%d", err);
+    //    return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
+	//}
+    //__android_log_print(ANDROID_LOG_INFO, TAG, "window(%d-%d-%d-%d-%p)",
+		//outBuffer.width, outBuffer.height, outBuffer.stride, outBuffer.format, outBuffer.bits);
+    //sur->unlockAndPost();  
+
+	ANativeWindowBuffer *nativeWindowBuffer = NULL;
 	if (native_window_dequeue_buffer_and_wait(anw.get(),&nativeWindowBuffer) != 0) {
         return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
 	}
@@ -183,15 +199,15 @@ int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, 
 	}
 
 	ANativeWindowBuffer *buf = nativeWindowBuffer;
-    __android_log_print(ANDROID_LOG_INFO, TAG, "mapper buf(%d %d)", buf->width, buf->height);  
-
+    __android_log_print(ANDROID_LOG_INFO, TAG, "mapper buf(%d %d):(%d)", buf->width, buf->height, buf->stride);  
+    //frameworks/av/media/libstagefright/colorconversion/SoftwareRenderer.cpp  ::render
     {
 		const uint8_t *src_y = (const uint8_t *)py;
 		const uint8_t *src_u = (const uint8_t *)pu;
 		const uint8_t *src_v = (const uint8_t *)pv;
 		uint8_t *dst_y = (uint8_t *)dstYUV;
-		size_t dst_y_size = buf->width * buf->height;
-		size_t dst_c_stride = ALIGN(buf->width / 2, 16);
+		size_t dst_y_size = buf->stride * buf->height;
+		size_t dst_c_stride = ALIGN(buf->stride / 2, 16);
 		size_t dst_c_size = dst_c_stride * buf->height / 2;
 		uint8_t *dst_v = dst_y + dst_y_size;
 		uint8_t *dst_u = dst_v + dst_c_size;
@@ -219,6 +235,12 @@ int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, 
         __android_log_print(ANDROID_LOG_INFO, TAG, "mapper unlock failed");  
 	}
 
+    ret = native_window_set_buffers_timestamp(anw.get(), timestamp);
+	if(ret != 0)
+	{
+        __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_set_buffers_timestamp:%lld", timestamp);  
+	}
+
 	ret = anw->queueBuffer(anw.get(), buf, -1);
 	if(ret != 0)
 	{
@@ -228,8 +250,9 @@ int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, 
 	//ret = anw->cancelBuffer(anw.get(), nativeWindowBuffer, -1);
 	//if(ret != 0)
 	//{
-		// __android_log_print(ANDROID_LOG_INFO, TAG, "cancelBuffer failed with error %s (%d)", strerror(-ret), -ret);
+	//	 __android_log_print(ANDROID_LOG_INFO, TAG, "cancelBuffer failed with error %s (%d)", strerror(-ret), -ret);
 	//}
+	
 	//
 	//ANativeWindow* window = ANativeWindow_fromSurface(env, sur);
 	//if (!window) {
@@ -254,10 +277,10 @@ int AndroidSurface_writePixels(/*in*/int width, int height, void *py, void *pu, 
 }  
   
 int AndroidSurface_updateSurface() {  
-    if(sur == NULL) {  
+    if(sur.get() == NULL) {  
         return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
     }  
-    if (!Surface::isValid (sur)){  
+    if (!Surface::isValid (sur.get())){  
         return ANDROID_SURFACE_RESULT_NOT_VALID;  
     }  
     if (sur->lock(NULL,NULL) < 0) {  
@@ -272,15 +295,16 @@ int AndroidSurface_updateSurface() {
   
 int AndroidSurface_unregister() {  
     __android_log_print(ANDROID_LOG_INFO, TAG, "unregistering video surface");  
-    if(sur == NULL) {  
+    if(sur.get() == NULL) {  
         return ANDROID_SURFACE_RESULT_JNI_EXCEPTION;  
     }  
-    sp<ANativeWindow> anw(sur);  
+    sp<ANativeWindow> anw(sur.get());  
 
 	if(native_window_api_disconnect(anw.get(),NATIVE_WINDOW_API_MEDIA) != OK)
 	{
         __android_log_print(ANDROID_LOG_INFO, TAG, "native_window_api_disconnect failed");
 	}
+	sur = NULL;
     __android_log_print(ANDROID_LOG_INFO, TAG, "unregistered");  
     return ANDROID_SURFACE_RESULT_SUCCESS;  
 } 

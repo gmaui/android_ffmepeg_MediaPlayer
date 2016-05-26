@@ -297,6 +297,14 @@ status_t MediaPlayer::resume() {
     return NO_ERROR;
 }
 
+status_t MediaPlayer::release() {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "release IN");
+    suspend();
+    __android_log_print(ANDROID_LOG_INFO, TAG, "release OUT");
+    return NO_ERROR;
+}
+
+
 status_t MediaPlayer::setVideoSurface(JNIEnv *env, jobject jsurface) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "setVideoSurface");
     if (Output::VideoDriver_register(env, jsurface) != ANDROID_SURFACE_RESULT_SUCCESS) {
@@ -343,7 +351,7 @@ void MediaPlayer::decode(AVFrame *frame, double pts) {
 //              sPlayer->mFrame->data,
 //              sPlayer->mFrame->linesize);
     Output::VideoDriver_writePixels(frame->width, frame->height,
-                               (void*)frame->data[0], (void*)frame->data[2], (void*)frame->data[1]);
+                               (void*)frame->data[0], (void*)frame->data[2], (void*)frame->data[1],pts);
     //Output::VideoDriver_updateSurface();
 }
 
@@ -436,6 +444,7 @@ void *MediaPlayer::startPlayer(void *ptr) {
 }
 
 status_t MediaPlayer::start() {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "start");
     if (mCurrentState != MEDIA_PLAYER_PREPARED) {
         return INVALID_OPERATION;
     }
@@ -444,6 +453,7 @@ status_t MediaPlayer::start() {
 }
 
 status_t MediaPlayer::stop() {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "stop");
     //pthread_mutex_lock(&mLock);
     mCurrentState = MEDIA_PLAYER_STOPPED;
     //pthread_mutex_unlock(&mLock);
@@ -451,6 +461,7 @@ status_t MediaPlayer::stop() {
 }
 
 status_t MediaPlayer::pause() {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "pause");
     //pthread_mutex_lock(&mLock);
     mCurrentState = MEDIA_PLAYER_PAUSED;
     //pthread_mutex_unlock(&mLock);
@@ -618,8 +629,8 @@ int Output::VideoDriver_unregister() {
     return AndroidSurface_unregister();
 }
 
-int Output::VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv) {
-    return AndroidSurface_writePixels(width, height, py, pu, pv);
+int Output::VideoDriver_writePixels(int width, int height, void *py,void *pu,void *pv,long long int timestamp) {
+    return AndroidSurface_writePixels(width, height, py, pu, pv, timestamp);
 }
 
 int Output::VideoDriver_updateSurface() {
@@ -905,21 +916,15 @@ bool DecoderVideo::process(AVPacket * packet) {
                           mFrame,
                           &completed,
                           packet);
-    if (err_code != 0) {
+    if (err_code < 0) {
         av_strerror(err_code, buf, 1024);
         __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_decode_video2: %d(%s)", err_code,
                             buf);
     }
     __android_log_print(ANDROID_LOG_INFO, TAG, "avcodec_decode_video2 completed=%d", completed);
-    if (packet->dts == AV_NOPTS_VALUE && mFrame->opaque
-        && *(uint64_t *) mFrame->opaque != AV_NOPTS_VALUE) {
-        pts = *(uint64_t *) mFrame->opaque;
-    } else if (packet->dts != AV_NOPTS_VALUE) {
-        pts = packet->dts;
-    } else {
-        pts = 0;
-    }
-    pts *= av_q2d(mStream->time_base);
+    pts = av_frame_get_best_effort_timestamp(mFrame);
+
+    pts = pts*av_q2d(mStream->time_base);
 
     if (completed) {
         pts = synchronize(mFrame, pts);
@@ -937,6 +942,7 @@ bool DecoderVideo::process(AVPacket * packet) {
         __android_log_print(ANDROID_LOG_INFO, TAG, "DecoderVideo onDecode ");
         onDecode(mSwsFrame, pts);
         if(iFrame++ == 0){
+            __android_log_print(ANDROID_LOG_INFO, TAG, "DataInfo: (w-h)=(%d-%d) (y-u-v)=(%d-%d-%d)",mSwsFrame->width, mSwsFrame->height,mSwsFrame->linesize[0], mSwsFrame->linesize[1],mSwsFrame->linesize[2]);
             FILE *pFile;
             char szFilename[32];
             int i;
@@ -965,6 +971,7 @@ bool DecoderVideo::process(AVPacket * packet) {
                 fclose(pFile);
             }
         }
+
         av_free(mBufferFrame);
         av_frame_free(&mSwsFrame);
     }
